@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useMemo, useState } from "react"
+import { useEffect, useState, useCallback } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import Footer from "@/components/footer"
 import { MovieCard } from "@/components/movie-card"
@@ -26,7 +26,7 @@ interface Interest {
   name: string
 }
 
-const CURRENT_YEAR = 2025
+const CURRENT_YEAR = new Date().getFullYear()
 
 const COMMON_GENRES = [
   "Action","Adventure","Animation","Biography","Comedy","Crime","Documentary","Drama","Family","Fantasy",
@@ -51,12 +51,14 @@ function sortToApi(sort: string): { sortBy: string; sortOrder: "ASC" | "DESC" } 
 export default function DiscoverPage() {
   const router = useRouter()
   const searchParams = useSearchParams()
+  const searchParamsString = searchParams.toString()
 
   const [titles, setTitles] = useState<Movie[]>([])
   const [loading, setLoading] = useState(false)
   const [nextPageToken, setNextPageToken] = useState<string | null>(null)
 
   // Filters (z URL)
+  const [inputValue, setInputValue] = useState("")          // Debounced Input
   const [query, setQuery] = useState("")                    // q
   const [minYear, setMinYear] = useState<number>(1980)      // minYear
   const [maxYear, setMaxYear] = useState<number>(CURRENT_YEAR) // maxYear
@@ -70,37 +72,48 @@ export default function DiscoverPage() {
 
   // 1) Inicjalizacja stanu z URL (jednorazowo)
   useEffect(() => {
-    const qp = (k: string) => searchParams.get(k)
-    setQuery(qp("q") ?? "")
-    setSort(qp("sort") ?? "RELEASE_DESC")
-    setType(qp("type") ?? "ALL")
-    setGenre(qp("genre") ?? "ALL")
-    setMinYear(qp("minYear") ? Number(qp("minYear")) : 1980)
-    setMaxYear(qp("maxYear") ? Math.min(Number(qp("maxYear")), CURRENT_YEAR) : CURRENT_YEAR)
-    setMinRating(qp("minRating") ? Number(qp("minRating")) : 0)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []) // tylko na mount
+    const q = searchParams.get("q") ?? ""
+    const genreParam = searchParams.get("genre") ?? searchParams.get("genres") ?? "ALL"
+    setInputValue(q)
+    setQuery(q)
+    setSort(searchParams.get("sort") ?? "RELEASE_DESC")
+    setType(searchParams.get("type") ?? "ALL")
+    setGenre(genreParam)
+    setMinYear(searchParams.get("minYear") ? Number(searchParams.get("minYear")) : 1980)
+    setMaxYear(searchParams.get("maxYear") ? Math.min(Number(searchParams.get("maxYear")), CURRENT_YEAR) : CURRENT_YEAR)
+    setMinRating(searchParams.get("minRating") ? Number(searchParams.get("minRating")) : 0)
+    // Usunięto błąd eslint, pusta tablica zależności jest tu celowa na start komponentu
+  }, [searchParamsString]) 
 
-  // 2) Sync stanu → URL (bez nawigacji, replace; debounced minimalnie przez batching)
+  // Debounce dla wyszukiwarki (optymalizacja API)
   useEffect(() => {
-    const params = new URLSearchParams()
-    if (query) params.set("q", query)
+    const timeoutId = setTimeout(() => setQuery(inputValue), 500)
+    return () => clearTimeout(timeoutId)
+  }, [inputValue])
+
+  // 2) Sync stanu → URL
+  useEffect(() => {
+    const params = new URLSearchParams(Array.from(searchParams.entries()))
+    
+    if (query) params.set("q", query); else params.delete("q")
     if (sort !== "RELEASE_DESC") params.set("sort", sort); else params.delete("sort")
-    if (type !== "ALL") params.set("type", type)
-    if (genre !== "ALL") params.set("genre", genre)
-    if (minYear !== 1980) params.set("minYear", String(minYear))
-    if (maxYear !== CURRENT_YEAR) params.set("maxYear", String(maxYear))
-    if (minRating !== 0) params.set("minRating", String(minRating))
+    if (type !== "ALL") params.set("type", type); else params.delete("type")
+    if (genre !== "ALL") params.set("genre", genre); else params.delete("genre")
+    params.delete("genres")
+    if (minYear !== 1980) params.set("minYear", String(minYear)); else params.delete("minYear")
+    if (maxYear !== CURRENT_YEAR) params.set("maxYear", String(maxYear)); else params.delete("maxYear")
+    if (minRating !== 0) params.set("minRating", String(minRating)); else params.delete("minRating")
+    
     const qs = params.toString()
     router.replace(qs ? `/discover?${qs}` : "/discover", { scroll: false })
-  }, [query, sort, type, genre, minYear, maxYear, minRating, router])
+  }, [query, sort, type, genre, minYear, maxYear, minRating, router, searchParamsString])
 
   // 3) Pobierz listę gatunków
   useEffect(() => {
     let active = true
     ;(async () => {
       try {
-        const res = await fetch("/api/interests", { cache: "no-store" })
+        const res = await fetch("/api/discover/interests", { cache: "no-store" })
         const ct = res.headers.get("content-type") || ""
         if (!ct.includes("application/json")) {
           if (active) setInterests(COMMON_GENRES)
@@ -116,7 +129,7 @@ export default function DiscoverPage() {
     return () => { active = false }
   }, [])
 
-  const buildDiscoverUrl = (pageToken?: string | null) => {
+  const buildDiscoverUrl = useCallback((pageToken?: string | null) => {
     const params = new URLSearchParams()
     const { sortBy, sortOrder } = sortToApi(sort)
 
@@ -124,41 +137,16 @@ export default function DiscoverPage() {
     params.set("sortBy", sortBy)
     params.set("sortOrder", sortOrder)
     params.set("minVoteCount", "1")
-    params.set("endYear", String(CURRENT_YEAR))
+    params.set("endYear", String(maxYear))
     if (minYear) params.set("startYear", String(minYear))
     if (type && type !== "ALL") params.append("types", type)
     if (genre && genre !== "ALL") params.append("genres", genre)
     if (pageToken) params.set("pageToken", pageToken)
 
     return `/api/discover/titles?${params.toString()}`
-  }
+  }, [sort, minYear, maxYear, type, genre])
 
-  function sortClient(list: Movie[], mode: string): Movie[] {
-    const copy = [...list]
-    switch (mode) {
-      case "POPULARITY":
-        copy.sort((a, b) => (b.rating?.voteCount ?? 0) - (a.rating?.voteCount ?? 0)); break
-      case "RELEASE_DESC":
-        copy.sort((a, b) => (b.startYear ?? 0) - (a.startYear ?? 0)); break
-      case "RELEASE_ASC":
-        copy.sort((a, b) => (a.startYear ?? 0) - (b.startYear ?? 0)); break
-      case "RATING_DESC":
-        copy.sort((a, b) => (b.rating?.aggregateRating ?? 0) - (a.rating?.aggregateRating ?? 0)); break
-      case "RATING_ASC":
-        copy.sort((a, b) => (a.rating?.aggregateRating ?? 0) - (b.rating?.aggregateRating ?? 0)); break
-      case "COUNT_DESC":
-        copy.sort((a, b) => (b.rating?.voteCount ?? 0) - (a.rating?.voteCount ?? 0)); break
-      case "COUNT_ASC":
-        copy.sort((a, b) => (a.rating?.voteCount ?? 0) - (b.rating?.voteCount ?? 0)); break
-      case "YEAR_DESC":
-        copy.sort((a, b) => (b.startYear ?? 0) - (a.startYear ?? 0)); break
-      case "YEAR_ASC":
-        copy.sort((a, b) => (a.startYear ?? 0) - (b.startYear ?? 0)); break
-    }
-    return copy
-  }
-
-  const fetchPage = async (append = false, token: string | null = null) => {
+  const fetchPage = useCallback(async (append = false, token: string | null = null) => {
     setLoading(true)
     try {
       let data: { titles: Movie[]; nextPageToken: string | null } = { titles: [], nextPageToken: null }
@@ -178,7 +166,7 @@ export default function DiscoverPage() {
       }
 
       let filtered = data.titles.filter((m) => {
-        const yearOk = !m.startYear || (m.startYear >= minYear && m.startYear <= CURRENT_YEAR)
+        const yearOk = !m.startYear || (m.startYear >= minYear && m.startYear <= maxYear)
         const ratingOk = m.rating && typeof m.rating.aggregateRating === "number" && m.rating.aggregateRating >= minRating
         const votesOk = m.rating && typeof m.rating.voteCount === "number" && m.rating.voteCount > 0
         const hasPoster = !!m.primaryImage?.url
@@ -200,12 +188,11 @@ export default function DiscoverPage() {
     } finally {
       setLoading(false)
     }
-  }
+  }, [query, buildDiscoverUrl, minYear, maxYear, minRating, type, genre, sort])
 
   useEffect(() => {
     fetchPage(false, null)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [query, minYear, maxYear, minRating, type, genre, sort])
+  }, [fetchPage])
 
   const loadMore = () => {
     if (loading || !nextPageToken) return
@@ -246,8 +233,8 @@ export default function DiscoverPage() {
                         params.set("title", movie.id)
                         params.delete("s")
                         params.delete("e")
-                        const url = `/?${params.toString()}`
-                        window.location.href = url
+                        // SPA Navigation zamiast twardego przeładowania
+                        router.push(`/?${params.toString()}`)
                       }}
                       isSelected={false}
                     />
@@ -274,15 +261,15 @@ export default function DiscoverPage() {
               <div className="relative">
                 <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                 <Input
-                  value={query}
-                  onChange={(e) => setQuery(e.target.value)}
+                  value={inputValue}
+                  onChange={(e) => setInputValue(e.target.value)}
                   placeholder="Search titles…"
                   className="pl-9"
                 />
-                {query && (
+                {inputValue && (
                   <button
                     type="button"
-                    onClick={() => setQuery("")}
+                    onClick={() => { setInputValue(""); setQuery(""); }}
                     className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
                   >
                     ✕
@@ -370,12 +357,6 @@ export default function DiscoverPage() {
                     <SelectItem value="ALL">All types</SelectItem>
                     <SelectItem value="MOVIE">Movie</SelectItem>
                     <SelectItem value="TV_SERIES">TV Series</SelectItem>
-                    <SelectItem value="TV_MINI_SERIES">TV Mini-Series</SelectItem>
-                    <SelectItem value="TV_MOVIE">TV Movie</SelectItem>
-                    <SelectItem value="TV_SPECIAL">TV Special</SelectItem>
-                    <SelectItem value="SHORT">Short</SelectItem>
-                    <SelectItem value="VIDEO">Video</SelectItem>
-                    <SelectItem value="VIDEO_GAME">Video Game</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -416,6 +397,31 @@ export default function DiscoverPage() {
 }
 
 /* helpers */
+function sortClient(list: Movie[], mode: string): Movie[] {
+  const copy = [...list]
+  switch (mode) {
+    case "POPULARITY":
+      copy.sort((a, b) => (b.rating?.voteCount ?? 0) - (a.rating?.voteCount ?? 0)); break
+    case "RELEASE_DESC":
+      copy.sort((a, b) => (b.startYear ?? 0) - (a.startYear ?? 0)); break
+    case "RELEASE_ASC":
+      copy.sort((a, b) => (a.startYear ?? 0) - (b.startYear ?? 0)); break
+    case "RATING_DESC":
+      copy.sort((a, b) => (b.rating?.aggregateRating ?? 0) - (a.rating?.aggregateRating ?? 0)); break
+    case "RATING_ASC":
+      copy.sort((a, b) => (a.rating?.aggregateRating ?? 0) - (b.rating?.aggregateRating ?? 0)); break
+    case "COUNT_DESC":
+      copy.sort((a, b) => (b.rating?.voteCount ?? 0) - (a.rating?.voteCount ?? 0)); break
+    case "COUNT_ASC":
+      copy.sort((a, b) => (a.rating?.voteCount ?? 0) - (b.rating?.voteCount ?? 0)); break
+    case "YEAR_DESC":
+      copy.sort((a, b) => (b.startYear ?? 0) - (a.startYear ?? 0)); break
+    case "YEAR_ASC":
+      copy.sort((a, b) => (a.startYear ?? 0) - (b.startYear ?? 0)); break
+  }
+  return copy
+}
+
 function normalizeType(t?: string) {
   if (!t) return ""
   const u = t.toUpperCase()
@@ -425,6 +431,7 @@ function normalizeType(t?: string) {
   if (u === "TVMOVIE" || u === "TV_MOVIE") return "TV_MOVIE"
   return u
 }
+
 function mapTypeToApi(t: string) {
   return normalizeType(t)
 }

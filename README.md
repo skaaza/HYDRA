@@ -8,7 +8,7 @@ Powered by public APIs, it provides seamless access to entertainment content wit
 ## ✨ Features
 
 🎬 **Stream Instantly** — Play movies and series directly using the [vidsrc.to](https://vidsrc.to) API.  
-🔍 **Smart Search** — Find movies or shows quickly with live suggestions powered by [imdbapi.dev](https://imdbapi.dev).  
+🔍 **Smart Search** — Find movies or shows quickly with live suggestions powered by [The Movie Database](https://www.themoviedb.org).  
 📺 **Episode Browser** — Explore seasons and episodes of your favorite series with one click.  
 📈 **Discover Mode** — Filter titles by genre, rating, or year and discover trending, top-rated, and most popular content.  
 🎨 **Modern UI** — Elegant design built with TailwindCSS and shadcn/ui, fully responsive and dark-mode ready.  
@@ -23,7 +23,7 @@ Hydra doesn’t host or store any videos.
 Instead, it acts as a **content aggregator**, fetching metadata and video sources from external providers:
 
 - 🎥 **[vidsrc.to](https://vidsrc.to)** → provides video embedding sources for movies and TV shows.  
-- 🎞️ **[imdbapi.dev](https://imdbapi.dev)** → provides metadata like posters, ratings, plots, and genres.  
+- 🎞️ **[The Movie Database](https://www.themoviedb.org)** → provides metadata like posters, ratings, plots, and genres.  
 
 All data is dynamically fetched and rendered client-side, so users can explore, filter, and play content in real time.
 
@@ -36,7 +36,7 @@ All data is dynamically fetched and rendered client-side, so users can explore, 
 | ⚛️ Framework | [Next.js 15](https://nextjs.org) |
 | 🎨 Styling | [TailwindCSS](https://tailwindcss.com) + [shadcn/ui](https://ui.shadcn.com) |
 | 🧠 State | React Hooks + useDebounce |
-| 📡 APIs | [vidsrc.to](https://vidsrc.to) & [imdbapi.dev](https://imdbapi.dev) |
+| 📡 APIs | [vidsrc.to](https://vidsrc.to) & [The Movie Database](https://www.themoviedb.org) |
 | 📦 TypeScript | for full type safety |
 | 🌗 Themes | [next-themes](https://github.com/pacocoursey/next-themes) |
 | 🖼️ Images | Next.js Image Optimization |
@@ -65,7 +65,7 @@ http://localhost:3000
 
 ### Environment Variables
 
-You don’t need any API keys — Hydra uses public endpoints from `imdbapi.dev` and `vidsrc.to`.
+Set `TMDB_BEARER_TOKEN` in `.env.local` with a TMDB read access token. Hydra also uses `vidsrc.to` for embeds.
 
 ---
 

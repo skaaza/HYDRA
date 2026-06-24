@@ -20,7 +20,8 @@ export interface CreditPerson {
 }
 
 interface CastProps {
-  imdbId: string
+  titleId?: string
+  imdbId?: string
   className?: string
 }
 
@@ -30,7 +31,14 @@ type CacheEntry = {
   total: number | null
 }
 
-export function Cast({ imdbId, className }: CastProps) {
+type CreditsResponse = {
+  credits?: CreditPerson[]
+  nextPageToken?: string | null
+  total?: number | null
+}
+
+export function Cast({ titleId, imdbId, className }: CastProps) {
+  const resolvedTitleId = titleId || imdbId || ""
   const [credits, setCredits] = useState<CreditPerson[]>([])
   const [isLoading, setIsLoading] = useState(false)
   const [isLoadingMore, setIsLoadingMore] = useState(false)
@@ -38,7 +46,7 @@ export function Cast({ imdbId, className }: CastProps) {
   const [nextPageToken, setNextPageToken] = useState<string | null>(null)
   const [total, setTotal] = useState<number | null>(null)
 
-  // cache: lista + nextPageToken + total per imdbId
+  // cache: list + nextPageToken + total per title id
   const cache = useRef<Record<string, CacheEntry>>({})
 
   // deduplikacja po (name.id + category)
@@ -56,52 +64,32 @@ export function Cast({ imdbId, className }: CastProps) {
   }
 
   // próbujemy wyciągnąć łączną liczbę rekordów z różnych możliwych miejsc
-  const extractTotal = (data: any): number | null => {
-    const candidates = [
-      data?.totalCredits,
-      data?.total,
-      data?.count,
-      data?.pagination?.total,
-      data?.meta?.total,
-    ]
-    for (const c of candidates) {
-      if (typeof c === "number" && c >= 0) return c
-    }
-    return null
-  }
-
   // 1 strona
   const fetchCreditsPage = async (token?: string | null) => {
-    const base = `https://api.imdbapi.dev/titles/${encodeURIComponent(imdbId)}/credits`
-    const url = token ? `${base}?pageToken=${encodeURIComponent(token)}` : base
+    const params = new URLSearchParams({ id: resolvedTitleId, pageSize: "50" })
+    if (token) params.set("pageToken", token)
 
-    const res = await fetch(url, { cache: "no-store" })
+    const res = await fetch(`/api/credits?${params.toString()}`, { cache: "no-store" })
     if (!res.ok) {
       throw new Error(`Credits fetch failed: ${res.status}`)
     }
-    const data = await res.json()
+    const data = (await res.json()) as CreditsResponse
 
     // lista może siedzieć pod credits / cast / być tablicą
-    const list: CreditPerson[] = Array.isArray(data?.credits)
-      ? data.credits
-      : Array.isArray(data?.cast)
-      ? data.cast
-      : Array.isArray(data)
-      ? data
-      : []
+    const list: CreditPerson[] = Array.isArray(data?.credits) ? data.credits : []
 
     const nextToken: string | null = data?.nextPageToken ?? null
-    const totalCount: number | null = extractTotal(data)
+    const totalCount: number | null = typeof data?.total === "number" ? data.total : null
 
     return { list, nextToken, totalCount }
   }
 
   // init (pierwsza porcja)
   useEffect(() => {
-    if (!imdbId) return
+    if (!resolvedTitleId) return
 
     const run = async () => {
-      const cached = cache.current[imdbId]
+      const cached = cache.current[resolvedTitleId]
       if (cached) {
         setCredits(cached.list)
         setNextPageToken(cached.nextPageToken)
@@ -117,10 +105,11 @@ export function Cast({ imdbId, className }: CastProps) {
         setCredits(unique)
         setNextPageToken(nextToken)
         setTotal(totalCount)
-        cache.current[imdbId] = { list: unique, nextPageToken: nextToken, total: totalCount }
-      } catch (err: any) {
+        cache.current[resolvedTitleId] = { list: unique, nextPageToken: nextToken, total: totalCount }
+      } catch (err: unknown) {
+        const message = err instanceof Error ? err.message : "Failed to load cast"
         console.error("Error fetching credits", err)
-        setError(err?.message || "Failed to load cast")
+        setError(message)
         setCredits([])
         setNextPageToken(null)
         setTotal(null)
@@ -130,7 +119,7 @@ export function Cast({ imdbId, className }: CastProps) {
     }
 
     run()
-  }, [imdbId])
+  }, [resolvedTitleId])
 
   // kolejne porcje
   const loadMore = async () => {
@@ -144,14 +133,15 @@ export function Cast({ imdbId, className }: CastProps) {
       setNextPageToken(nextToken)
       // jeśli wcześniej total był nieznany, a teraz API go zwróciło — ustaw
       if (total === null && typeof totalCount === "number") setTotal(totalCount)
-      cache.current[imdbId] = {
+      cache.current[resolvedTitleId] = {
         list: merged,
         nextPageToken: nextToken,
         total: total ?? totalCount ?? null,
       }
-    } catch (err: any) {
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : "Failed to load more cast"
       console.error("Error fetching more credits", err)
-      setError(err?.message || "Failed to load more cast")
+      setError(message)
     } finally {
       setIsLoadingMore(false)
     }
@@ -167,7 +157,7 @@ export function Cast({ imdbId, className }: CastProps) {
     }, {})
   }, [credits])
 
-  if (!imdbId) {
+  if (!resolvedTitleId) {
     return (
       <Card className={`p-6 bg-card border-border ${className || ""}`}>
         <h3 className="text-xl font-semibold mb-2">Cast & Crew</h3>

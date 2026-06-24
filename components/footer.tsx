@@ -13,7 +13,7 @@ export default function Footer({ onLogoClick }: FooterProps) {
         © 2025 Hydra. All rights reserved.
         <br />
         Hydra uses the various API for streaming and{" "}
-        <span className="font-semibold text-primary">imdbapi.dev</span> for fetching info from the IMDb database — we do
+        <span className="font-semibold text-primary">The Movie Database</span> for fetching info from the TMDB database — we do
         not host or upload any videos.
       </p>
     </footer>
