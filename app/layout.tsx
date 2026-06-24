@@ -25,10 +25,10 @@ export default function RootLayout({
           items={[
             { href: "/", label: "Home" },
             { href: "/about", label: "About" },
-            { href: "https://donate.stripe.com/bJe7sN0o846xfP71GdgYU00", label: "Support" },
+            { href: "/changelog", label: "Changelog" },
             { href: "/discover", label: "Discover" },
           ]}
-          cta={{ label: "GitHub", href: "/pro" }}
+          cta={{ label: "Support Us", href: "/support" }}
         />
         <Suspense fallback={<div>Loading...</div>}>{children}</Suspense>
         <Analytics />

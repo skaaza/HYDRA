@@ -53,7 +53,7 @@ export default function AboutPage() {
                 <h3 className="font-medium">Data Sources</h3>
                 <p className="text-muted-foreground">
                   Title information (metadata like posters, ratings, cast, and genres) is fetched from{" "}
-                  <span className="text-foreground font-medium">imdbapi.dev</span>. Hydra does not store or modify that data — it simply displays it.
+                  <span className="text-foreground font-medium">The Movie Database</span>. Hydra does not store or modify that data — it simply displays it.
                 </p>
               </div>
               <div className="space-y-2">
@@ -118,7 +118,7 @@ export default function AboutPage() {
               />
               <FaqItem
                 q="How accurate are ratings and posters?"
-                a="All metadata comes from third-party APIs (like imdbapi.dev). Hydra does not edit that data and simply displays it."
+                a="All metadata comes from third-party APIs (like The Movie Database). Hydra does not edit that data and simply displays it."
               />
               <FaqItem
                 q="Can I request features or report an issue?"
