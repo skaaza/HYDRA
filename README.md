@@ -148,7 +148,7 @@ npm start
 
 ## 🧙‍♂️ Author
 
-Created with ❤️ by [Kaxuri](https://github.com/kaxuri)  
+Created with ❤️ by [skaaza](https://github.com/skaaza)  
 If you like this project, consider giving it a ⭐ on GitHub — it helps a lot!
 
 ---
