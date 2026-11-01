@@ -33,7 +33,7 @@ All data is dynamically fetched and rendered client-side, so users can explore, 
 
 | Category | Technology |
 |-----------|-------------|
-| ⚛️ Framework | [Next.js 15](https://nextjs.org) |
+| ⚛️ Framework | [Next.js 16](https://nextjs.org) |
 | 🎨 Styling | [TailwindCSS](https://tailwindcss.com) + [shadcn/ui](https://ui.shadcn.com) |
 | 🧠 State | React Hooks + useDebounce |
 | 📡 APIs | [vidsrc.to](https://vidsrc.to) & [The Movie Database](https://www.themoviedb.org) |
